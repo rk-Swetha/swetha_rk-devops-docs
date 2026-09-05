@@ -1,0 +1,49 @@
+site_name: Swetha's DevOps Documentation
+site_description: My personal DevOps learning journey and knowledge base
+site_author: R.K.Swetha
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: index.md
+
+  - Linux:
+    - Overview: linux/index.md
+    - Basic Commands: linux/basic-commands.md
+
+  - Terraform:
+    - Overview: terraform/index.md
+    - Fundamentals: terraform/fundamentals.md
+    - Commands: terraform/commands.md
+    - Modules: terraform/modules.md
+    - State: terraform/state.md
+
+  - AWS:
+    - Overview: aws/index.md
+    - IAM: aws/iam.md
+    - Lambda: aws/lambda.md
+    - API Gateway: aws/api-gateway.md
+    - DynamoDB: aws/dynamodb.md
+    - Cognito: aws/cognito.md
+    - KMS: aws/kms.md
+    - SNS: aws/sns.md
+
+  - Docker:
+    - Overview: docker/index.md
+
+  - CI/CD:
+    - Overview: cicd/index.md
+
+  - Projects:
+    - Overview: projects/index.md
+    - Employee Management API: projects/employee-management-api.md
+
+  - Troubleshooting:
+    - Overview: troubleshooting/index.md
