@@ -14,36 +14,41 @@ theme:
 nav:
   - Home: index.md
 
+  - Learning Path:
+      - Overview: learning-path/index.md
+      - Sprint 1: learning-path/sprint-01.md
+      - Sprint 2: learning-path/sprint-02.md
+      - Sprint 3: learning-path/sprint-03.md
+      - Sprint 4: learning-path/sprint-04.md
+      - Sprint 5: learning-path/sprint-05.md
+
   - Linux:
-    - Overview: linux/index.md
-    - Basic Commands: linux/basic-commands.md
+      - Overview: linux/index.md
+      - Basic Commands: linux/basic-commands.md
 
   - Terraform:
-    - Overview: terraform/index.md
-    - Fundamentals: terraform/fundamentals.md
-    - Commands: terraform/commands.md
-    - Modules: terraform/modules.md
-    - State: terraform/state.md
+      - Overview: terraform/index.md
+      - Fundamentals: terraform/fundamentals.md
 
   - AWS:
-    - Overview: aws/index.md
-    - IAM: aws/iam.md
-    - Lambda: aws/lambda.md
-    - API Gateway: aws/api-gateway.md
-    - DynamoDB: aws/dynamodb.md
-    - Cognito: aws/cognito.md
-    - KMS: aws/kms.md
-    - SNS: aws/sns.md
+      - Overview: aws/index.md
+      - IAM: aws/iam.md
+      - Lambda: aws/lambda.md
+      - API Gateway: aws/api-gateway.md
+      - DynamoDB: aws/dynamodb.md
+      - Cognito: aws/cognito.md
+      - KMS: aws/kms.md
+      - SNS: aws/sns.md
 
   - Docker:
-    - Overview: docker/index.md
+      - Overview: docker/index.md
 
   - CI/CD:
-    - Overview: cicd/index.md
+      - Overview: cicd/index.md
 
   - Projects:
-    - Overview: projects/index.md
-    - Employee Management API: projects/employee-management-api.md
+      - Overview: projects/index.md
+      - Employee Management API: projects/employee-management-api.md
 
   - Troubleshooting:
-    - Overview: troubleshooting/index.md
+      - Overview: troubleshooting/index.md
