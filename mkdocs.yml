@@ -21,7 +21,11 @@ nav:
       - Sprint 3: learning-path/sprint-03.md
       - Sprint 4: learning-path/sprint-04.md
       - Sprint 5: learning-path/sprint-05.md
-
+      - Sprint 6: learning-path/sprint-06.md
+      - Sprint 7: learning-path/sprint-07.md
+      - Sprint 8: learning-path/sprint-08.md
+      - Sprint 9: learning-path/sprint-09.md
+    
   - Linux:
       - Overview: linux/index.md
       - Basic Commands: linux/basic-commands.md
