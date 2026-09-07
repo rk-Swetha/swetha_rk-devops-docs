@@ -2,90 +2,129 @@
 
 ## Overview
 
-Sprint 6 focused on Terraform resource dependencies.
+Terraform does not simply create resources in the order they appear in a `.tf` file.
 
-Terraform infrastructure contains multiple resources that depend on one another. For example, an AWS Lambda function may depend on an IAM role, while the Lambda function may interact with a DynamoDB table.
+Instead, Terraform builds a **dependency graph** to determine which resources must be created, updated, or destroyed before other resources.
 
-Understanding dependencies helps Terraform determine the correct order in which resources should be created, updated, and destroyed.
+Understanding dependencies is important because real-world infrastructure rarely consists of completely independent resources.
 
-The Employee Management API project provided a practical example of these dependency relationships between IAM, Lambda, DynamoDB and API Gateway.
-
----
-
-## 1. What are Terraform Dependencies?
-
-A Terraform dependency exists when one resource requires another resource to exist or be configured first.
-
-For example:
+For example, in the Employee Management API project:
 
 ```text
-IAM Role
-    ↓
+DynamoDB Table
+      ↑
+      │
+Lambda IAM Policy
+      ↑
+      │
+Lambda IAM Role
+      ↑
+      │
 Lambda Function
 ```
 
-The Lambda function requires an IAM role to execute.
+The Lambda function depends on the IAM role, and the IAM role may depend on policies that grant access to DynamoDB.
 
-Terraform uses dependencies to build an internal dependency graph and determine the correct execution order.
+Terraform uses these relationships to determine the correct execution order.
+
+---
+
+## 1. What is a Terraform Dependency?
+
+A dependency means that one Terraform resource relies on another resource.
+
+For example:
+
+```hcl
+resource "aws_dynamodb_table" "employee" {
+  name         = "employee-dev-table"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "employee_id"
+
+  attribute {
+    name = "employee_id"
+    type = "S"
+  }
+}
+```
+
+A Lambda function may need permission to access this DynamoDB table.
+
+Therefore, the infrastructure has a logical relationship:
+
+```text
+DynamoDB
+   │
+   │ access permission
+   ▼
+IAM Policy
+   │
+   ▼
+IAM Role
+   │
+   ▼
+Lambda Function
+```
+
+Terraform needs to understand these relationships so that resources are provisioned safely.
 
 ---
 
 ## 2. Implicit Dependencies
 
-Terraform can automatically detect dependencies when one resource references another resource.
+An **implicit dependency** occurs when Terraform can determine the relationship automatically from resource references.
 
-For example:
+Example:
 
 ```hcl
-resource "aws_iam_role" "lambda_role" {
+resource "aws_dynamodb_table" "employee" {
+  name         = "employee-dev-table"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "employee_id"
 
-  name = "employee-api-role"
+  attribute {
+    name = "employee_id"
+    type = "S"
+  }
+}
+```
 
-  assume_role_policy = jsonencode({
+Suppose an IAM policy references the DynamoDB table ARN:
+
+```hcl
+resource "aws_iam_policy" "lambda_dynamodb" {
+  name = "lambda-dynamodb-policy"
+
+  policy = jsonencode({
     Version = "2012-10-17"
 
     Statement = [{
       Effect = "Allow"
 
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      }
+      Action = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem"
+      ]
 
-      Action = "sts:AssumeRole"
+      Resource = aws_dynamodb_table.employee.arn
     }]
   })
 }
-
-resource "aws_lambda_function" "employee_api" {
-
-  function_name = "employee-api"
-
-  role = aws_iam_role.lambda_role.arn
-
-  runtime = "python3.13"
-  handler = "app.lambda_handler"
-
-  filename = "lambda.zip"
-}
 ```
 
-The following reference creates an implicit dependency:
-
-```hcl
-role = aws_iam_role.lambda_role.arn
-```
-
-Terraform understands that:
+Terraform sees:
 
 ```text
-aws_lambda_function.employee_api
-                ↓
-depends on
-                ↓
-aws_iam_role.lambda_role
+aws_iam_policy.lambda_dynamodb
+              │
+              │ references
+              ▼
+aws_dynamodb_table.employee
 ```
 
-Therefore, Terraform creates the IAM role before the Lambda function.
+Terraform therefore knows that the DynamoDB table must exist before the policy can correctly reference its ARN.
+
+This is an **implicit dependency**.
 
 ---
 
@@ -93,255 +132,363 @@ Therefore, Terraform creates the IAM role before the Lambda function.
 
 Sometimes Terraform cannot automatically determine a dependency.
 
-Terraform provides the `depends_on` argument for explicitly defining such dependencies.
+In such cases, Terraform provides the `depends_on` meta-argument.
 
-For example:
+Example:
 
 ```hcl
 resource "aws_lambda_function" "employee_api" {
+  function_name = "employee-api-dev"
 
-  function_name = "employee-api"
-
-  role = aws_iam_role.lambda_role.arn
-
-  runtime = "python3.13"
-  handler = "app.lambda_handler"
-
-  filename = "lambda.zip"
+  # other configuration...
 
   depends_on = [
-    aws_iam_role_policy_attachment.lambda_policy_attachment
+    aws_iam_role_policy_attachment.lambda_policy
   ]
 }
 ```
 
-This tells Terraform that the Lambda function must wait for the IAM policy attachment.
-
-Conceptually:
+This explicitly tells Terraform:
 
 ```text
-IAM Role
-    ↓
-IAM Policy
-    ↓
-Policy Attachment
-    ↓
-Lambda
+Create IAM policy attachment
+          ↓
+Then create/update Lambda
 ```
 
 ---
 
-## 4. Implicit vs Explicit Dependencies
+## 4. `depends_on` Syntax
 
-Terraform supports both implicit and explicit dependencies.
-
-### Implicit Dependency
-
-Created automatically through resource references.
+The general syntax is:
 
 ```hcl
-role = aws_iam_role.lambda_role.arn
+depends_on = [
+  resource.type.name
+]
 ```
 
-### Explicit Dependency
-
-Defined manually using:
+For example:
 
 ```hcl
-depends_on = [...]
+depends_on = [
+  aws_iam_role_policy_attachment.lambda_dynamodb
+]
 ```
 
-The recommended approach is to prefer implicit dependencies whenever possible.
+Multiple dependencies can also be specified:
+
+```hcl
+depends_on = [
+  aws_iam_role_policy_attachment.lambda_dynamodb,
+  aws_iam_role_policy_attachment.lambda_logs
+]
+```
+
+This means Terraform must consider all listed resources before proceeding.
+
+---
+
+## 5. Implicit vs Explicit Dependencies
+
+The two approaches can be compared as follows:
+
+| Dependency | How Terraform knows | Example                           |
+| ---------- | ------------------- | --------------------------------- |
+| Implicit   | Resource reference  | `aws_dynamodb_table.employee.arn` |
+| Explicit   | `depends_on`        | `depends_on = [...]`              |
+
+### Prefer implicit dependencies
+
+Whenever possible, use resource references.
+
+For example:
+
+```hcl
+Resource = aws_dynamodb_table.employee.arn
+```
+
+is generally preferable to:
+
+```hcl
+depends_on = [
+  aws_dynamodb_table.employee
+]
+```
+
+when the reference itself already establishes the dependency.
+
+---
+
+## 6. Why `depends_on` Should Not Be Overused
+
+It is tempting to add `depends_on` everywhere.
+
+This is usually unnecessary.
+
+For example:
+
+```hcl
+resource "aws_iam_policy" "lambda_dynamodb" {
+  # ...
+  
+  depends_on = [
+    aws_dynamodb_table.employee
+  ]
+}
+```
+
+If the policy already contains:
+
+```hcl
+Resource = aws_dynamodb_table.employee.arn
+```
+
+then Terraform already knows about the dependency.
+
+Adding `depends_on` provides no additional value.
+
+Overusing explicit dependencies can make Terraform configurations:
+
+* harder to understand
+* more tightly coupled
+* less flexible
+* harder to maintain
+
+The preferred approach is:
 
 ```text
+Resource Reference
+       ↓
 Implicit Dependency
-        ↓
-Preferred
-
-Explicit depends_on
-        ↓
-Use only when required
+       ↓
+Use depends_on only when necessary
 ```
 
 ---
 
-## 5. Why Dependencies Matter
+## 7. Dependency Graph
 
-Correct dependency management helps Terraform:
+Terraform internally creates a dependency graph.
 
-* Create resources in the correct order.
-* Update resources safely.
-* Destroy resources in the correct order.
-* Understand relationships between resources.
-* Avoid unnecessary deployment failures.
-* Build an accurate infrastructure dependency graph.
+For the Employee Management API, a simplified graph could look like:
 
-Without proper dependency relationships, Terraform may attempt operations before required resources are ready.
+```text
+                    ┌─────────────────┐
+                    │    DynamoDB     │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │   IAM Policy    │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │     IAM Role    │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │ Lambda Function  │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │  API Gateway    │
+                    └─────────────────┘
+```
+
+Terraform uses this graph to determine the correct execution order.
 
 ---
 
-## 6. Dependency Relationships in the Project
+## 8. Terraform Graph Command
 
-The Employee Management API contains several infrastructure relationships.
-
-A simplified dependency structure is:
-
-```text
-IAM Role
-    │
-    ├── IAM Policy
-    │
-    └── Policy Attachment
-            │
-            ↓
-         Lambda
-            │
-            ├── DynamoDB
-            │
-            └── API Gateway
-```
-
-The important relationships include:
-
-```text
-IAM
- ↓
-Lambda
-```
-
-Lambda requires an IAM execution role.
-
-```text
-DynamoDB
- ↓
-Lambda
-```
-
-Lambda requires appropriate IAM permissions to access DynamoDB.
-
-```text
-Lambda
- ↓
-API Gateway
-```
-
-API Gateway invokes the Lambda function.
-
----
-
-## 7. Terraform Dependency Graph
-
-Terraform can generate a dependency graph using:
+Terraform provides a command to visualize the dependency graph:
 
 ```bash
 terraform graph
 ```
 
-The graph represents relationships between Terraform resources.
+Example:
 
-This is useful for understanding how Terraform determines the order of operations.
+```bash
+terraform graph
+```
 
-For the Employee Management API, the graph can be used to inspect relationships between:
+The output is generally represented in Graphviz DOT format.
 
-* IAM
-* Lambda
-* DynamoDB
-* API Gateway
-* CloudWatch
+It can be redirected to a file:
+
+```bash
+terraform graph > graph.dot
+```
+
+The graph can then be rendered using Graphviz or another compatible visualization tool.
+
+This is particularly useful when troubleshooting complicated Terraform configurations.
 
 ---
 
-## 8. When to Use `depends_on`
+## 9. Dependency and Resource Destruction
 
-`depends_on` should not be added to every resource.
+Dependencies also affect resource destruction.
 
-Terraform should normally determine dependencies automatically.
-
-For example, this is preferable:
-
-```hcl
-role = aws_iam_role.lambda_role.arn
-```
-
-instead of unnecessarily adding:
-
-```hcl
-depends_on = [
-  aws_iam_role.lambda_role
-]
-```
-
-Explicit dependencies should be used when Terraform cannot determine a required dependency from the configuration itself.
-
----
-
-## 9. Application to Employee Management API
-
-The Employee Management API Terraform configuration was reviewed to understand how AWS resources depend on each other.
-
-The main dependency relationships were:
+Suppose:
 
 ```text
+Lambda
+  ↓
 IAM Role
-    ↓
-Lambda
-
-DynamoDB
-    ↓
-Lambda permissions
-
-Lambda
-    ↓
-API Gateway
+  ↓
+IAM Policy
 ```
 
-The project follows the principle of allowing Terraform to determine dependencies through resource references whenever possible.
+Terraform considers these relationships when determining the appropriate destruction order.
+
+The goal is to avoid attempting operations against resources before their dependencies have been handled.
+
+This is one reason Terraform's dependency graph is fundamental to infrastructure lifecycle management.
 
 ---
 
-## 10. Learned vs Implemented
+## 10. Dependency Example in the Project
+
+A simplified project configuration may contain:
+
+```hcl
+resource "aws_dynamodb_table" "employee" {
+  name         = "employee-dev-table"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "employee_id"
+
+  attribute {
+    name = "employee_id"
+    type = "S"
+  }
+}
+```
+
+IAM policy:
+
+```hcl
+resource "aws_iam_policy" "lambda_dynamodb" {
+  name = "lambda-dynamodb-policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [{
+      Effect = "Allow"
+
+      Action = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem"
+      ]
+
+      Resource = aws_dynamodb_table.employee.arn
+    }]
+  })
+}
+```
+
+The dependency is automatically established:
+
+```text
+DynamoDB Table
+      │
+      │ ARN reference
+      ▼
+IAM Policy
+```
+
+If a Lambda role policy attachment is then created:
+
+```hcl
+resource "aws_iam_role_policy_attachment" "lambda_dynamodb" {
+  role       = aws_iam_role.lambda.name
+  policy_arn = aws_iam_policy.lambda_dynamodb.arn
+}
+```
+
+Terraform can build the chain:
+
+```text
+DynamoDB
+   ↓
+IAM Policy
+   ↓
+Policy Attachment
+   ↓
+Lambda Role / Function
+```
+
+---
+
+## 11. Learned vs Implemented
 
 ### 📚 Learned
 
-* Terraform dependencies
-* Dependency graphs
+The following concepts were learned:
+
+* Terraform dependency management
 * Implicit dependencies
 * Explicit dependencies
 * `depends_on`
+* Terraform dependency graphs
 * Resource references
-* Resource creation order
-* Resource destruction order
+* Dependency-aware creation and destruction
+* `terraform graph`
+* Why unnecessary `depends_on` should be avoided
 
 ### 🛠️ Implemented
 
-The Employee Management API infrastructure was reviewed for resource dependencies.
+In the Employee Management API infrastructure, dependencies are primarily established through **resource references**.
 
-Important relationships between IAM, Lambda, DynamoDB and API Gateway were identified.
+For example:
 
-Terraform's implicit dependency mechanism was preferred wherever possible.
+```hcl
+aws_dynamodb_table.employee.arn
+```
+
+creates an implicit relationship between the DynamoDB table and the IAM policy that references it.
+
+The project follows the preferred approach of allowing Terraform to automatically determine dependencies wherever possible.
+
+Explicit `depends_on` should only be introduced when Terraform cannot correctly infer the required relationship.
 
 ### 🔮 Future Improvements
 
-Dependencies can be further improved by:
+As the infrastructure becomes more complex, dependency graphs can be reviewed using:
 
-* Avoiding unnecessary `depends_on`.
-* Reviewing dependency graphs during infrastructure changes.
-* Keeping resource references explicit and clear.
-* Adding explicit dependencies only when Terraform cannot infer them.
-* Reviewing dependency relationships when introducing new modules.
+```bash
+terraform graph
+```
+
+This can help identify:
+
+* unexpected dependencies
+* unnecessary dependencies
+* tightly coupled resources
+* potential infrastructure design problems
 
 ---
 
-## 11. Key Takeaways
+## 12. Key Takeaways
 
-> Terraform uses dependencies to determine the correct order for infrastructure operations.
+> 1. Terraform creates a dependency graph before applying infrastructure changes.
 
-> Resource references normally create implicit dependencies automatically.
+> 2. Resource references automatically create **implicit dependencies**.
 
-> `depends_on` can be used when an explicit dependency is required.
+> 3. `depends_on` creates an **explicit dependency**.
 
-> Implicit dependencies should generally be preferred over unnecessary explicit dependencies.
+> 4. Implicit dependencies should generally be preferred.
 
-> Understanding dependencies becomes increasingly important as Terraform infrastructure grows.
+> 5. `depends_on` should only be used when Terraform cannot infer the relationship.
 
-Sprint 6 established the foundation for the next stage: **Terraform modules and reusable infrastructure**.
+> 6. Dependencies affect both resource creation and destruction.
+
+> 7. `terraform graph` can help visualize complex infrastructure relationships.
+
+The next step is to move from individual Terraform resources toward **reusable infrastructure components using Terraform Modules**.
