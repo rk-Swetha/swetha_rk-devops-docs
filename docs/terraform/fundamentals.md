@@ -318,7 +318,7 @@ Terraform state is Terraform's record of the infrastructure it manages.
 
 At a high level:
 
-```text
+<pre style="font-family: 'Courier New', Courier, monospace; line-height: 1.3; letter-spacing: 0px; font-size: 14px; background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
 Terraform Configuration
         │
         ▼
@@ -327,7 +327,7 @@ Terraform Configuration
         ├───────────────┐
         ▼               ▼
  Terraform State   Actual Infrastructure
-```
+</pre>
 
 Terraform uses state to keep track of resources that it manages and their known attributes.
 

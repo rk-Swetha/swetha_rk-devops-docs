@@ -35,7 +35,8 @@ nav:
       - Overview: terraform/index.md
       - Fundamentals: terraform/fundamentals.md
       - Configuration Language: terraform/configuration-language.md
-      - Resources: terraform/resources.md
+      - Terraform Resources: terraform/resources.md
+      - Data Sources: terraform/data-sources.md
 
   - AWS:
       - Overview: aws/index.md
