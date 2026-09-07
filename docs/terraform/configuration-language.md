@@ -745,14 +745,14 @@ instance_type = var.environment == "prod" ? "large" : "small"
 
 Conceptually:
 
-```text
+<pre style="font-family: 'Courier New', Courier, monospace; line-height: 1.3; letter-spacing: 0px; font-size: 14px; background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
              environment == prod?
                     │
              ┌──────┴──────┐
             Yes            No
              │              │
           "large"         "small"
-```
+</pre>
 
 Conditional expressions are useful when infrastructure behavior needs to vary between environments.
 
@@ -976,7 +976,7 @@ Terraform treats these files as part of the same module.
 
 The configuration is conceptually combined:
 
-```text
+<pre style="font-family: 'Courier New', Courier, monospace; line-height: 1.3; letter-spacing: 0px; font-size: 14px; background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
              Terraform Module
                     │
        ┌────────────┼────────────┐
@@ -986,7 +986,7 @@ The configuration is conceptually combined:
        └────────────┼────────────┘
                     ▼
                 Terraform
-```
+</pre>
 
 File names help organize configuration for humans.
 
