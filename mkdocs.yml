@@ -39,6 +39,7 @@ nav:
       - Data Sources: terraform/data-sources.md
       - Terraform Variables: terraform/variables.md
       - Terraform Outputs: terraform/outputs.md
+      - Terraform Providers: terraform/providers.md
 
   - AWS:
       - Overview: aws/index.md
